@@ -109,7 +109,28 @@ class nolatbuild(nn.Module):
         x2 = self.l1(x1)
         out = self.l2(x2)
         
-        return out, x2
+        return out, x2, x0
     
+class nolatbuild_class(nn.Module):
+    def __init__(self,  in_channels=3, n_classes = 2):
+        super().__init__()
+        self.n_classes = n_classes
+             
+        self.l0 = ResCon2D(in_channels=in_channels, out_channels=1, kernel_size=(3,3), stride=1, padding =0)
+        self.l1 = nn.Sequential(
+            nn.Linear(784, 32),
+            nn.ReLU())
+        
+        self.l2 = nn.Sequential(
+            nn.Linear(32, n_classes),
+            nn.Softmax(dim=0))
 
+    
+    def forward(self, x):
+        x0 = self.l0(x)
+        x1 = torch.flatten(x0, start_dim=1)
+        x2 = self.l1(x1)
+        out = self.l2(x2)
+        
+        return out
       

@@ -21,37 +21,68 @@ def random_crop_with_coords(img, crop_size):
     cropped = F.crop(img, i, j, th, tw)
     return cropped, (i, j)
 
-def crop_image(im=None, im_x = None, im_y = None, crop_size = None, random = False):
-    
-    if len(im.shape)>0:
-        im_w = im.shape[2]
-        im_h = im.shape[3]
-    
-    if random: 
-        
-        iw = im_w - crop_size 
-        ih = im_h - crop_size
-        
-        x = randy.randint(0, iw)
-        x = torch.tensor(x).to(device)
-        y = randy.randint(0, ih)
-        y = torch.tensor(y).to(device)
-        
-        cropt = im[:, :, x:x+crop_size, y:y+crop_size]
-        return cropt, x, y
-    else:
-        
-        cropt = F.crop(im, im_y, im_x, crop_size, crop_size)
-        
-    if cropt.shape[2] != crop_size or cropt.shape[3] != crop_size:
-        cropt_new = torch.zeros((cropt.shape[0], cropt.shape[1], crop_size, crop_size))
-        cropt_new[:, :, :cropt.shape[2], :cropt.shape[3]] = cropt
-        cropt = cropt_new
+import torch
 
-    
+def crop_image(
+    im: torch.Tensor,
+    im_x=None,
+    im_y=None,
+    crop_size: int = 7,
+    random: bool = False,
+    device=None,
+):
+    """
+    Batch-aware crop.
+    im: (B, C, H, W) or (C, H, W)
+    im_x, im_y: either ints or tensors of shape (B,) giving top-left x/y (w/h) coords
+    returns: (cropt, x, y) if random=True else cropt
+    """
+    if device is None:
+        device = im.device
+
+    if im.dim() == 3:
+        im = im.unsqueeze(0)  # (1, C, H, W)
+
+    B, C, H, W = im.shape
+    cs = int(crop_size)
+
+    max_x = W - cs
+    max_y = H - cs
+    if max_x < 0 or max_y < 0:
+        raise ValueError(f"crop_size={cs} larger than image size HxW={H}x{W}")
+
+    if random:
+        x = torch.randint(0, max_x + 1, (B,), device=device)
+        y = torch.randint(0, max_y + 1, (B,), device=device)
+    else:
+        # accept python ints or tensors
+        x = torch.as_tensor(im_x, device=device)
+        y = torch.as_tensor(im_y, device=device)
+        if x.dim() == 0: x = x.expand(B)
+        if y.dim() == 0: y = y.expand(B)
+
+        x = x.clamp(0, max_x)
+        y = y.clamp(0, max_y)
+
+    # Extract all cs x cs patches, then select per-sample index
+    # patches: (B, C, H-cs+1, W-cs+1, cs, cs)
+    patches = im.unfold(2, cs, 1).unfold(3, cs, 1)
+
+    b_idx = torch.arange(B, device=device)
+    cropt = patches[b_idx, :, y, x, :, :]  # (B, C, cs, cs)
+
+    if random:
+        return cropt, x, y
     return cropt
-    
-    
+
+
+def crop_batch(im: torch.Tensor, w: torch.Tensor, h: torch.Tensor, crop_size: int):
+    """
+    Backward-compatible wrapper:
+    w/h are (B,) tensors for the top-left coords.
+    Returns (B, C, crop_size, crop_size).
+    """
+    return crop_image(im=im, im_x=w, im_y=h, crop_size=crop_size, random=False)
             
     
 
