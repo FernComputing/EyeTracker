@@ -75,6 +75,44 @@ def crop_image(
         return cropt, x, y
     return cropt
 
+def add_patch_batch(int_im, x0, h, w, crop_size, mask=None):
+    """
+    int_im: (B, H, W)
+    x0:     (B, 1, crop_size, crop_size) or (B, crop_size, crop_size)
+    h, w:   (B,) top-left coords, long
+    mask:   (B,) bool, optional
+    """
+    B, H, W = int_im.shape
+    device = int_im.device
+
+    if x0.dim() == 4:
+        patch = x0[:, 0]   # -> (B, crop_size, crop_size)
+    else:
+        patch = x0
+
+    if mask is not None:
+        active = mask.nonzero(as_tuple=False).squeeze(1)
+        if active.numel() == 0:
+            return int_im
+        h = h[active]
+        w = w[active]
+        patch = patch[active]
+        batch_idx = active
+    else:
+        batch_idx = torch.arange(B, device=device)
+
+    dh = torch.arange(crop_size, device=device)
+    dw = torch.arange(crop_size, device=device)
+
+    rows = h[:, None] + dh[None, :]          # (Ba, crop)
+    cols = w[:, None] + dw[None, :]          # (Ba, crop)
+
+    batch_idx = batch_idx[:, None, None]     # (Ba, 1, 1)
+    rows = rows[:, :, None]                  # (Ba, crop, 1)
+    cols = cols[:, None, :]                  # (Ba, 1, crop)
+
+    int_im[batch_idx, rows, cols] += 3*patch
+    return int_im
 
 def crop_batch(im: torch.Tensor, w: torch.Tensor, h: torch.Tensor, crop_size: int):
     """

@@ -109,19 +109,23 @@ class latbuild(nn.Module):
 
 
 class nolatbuild(nn.Module):
-    def __init__(self, in_channels=3, n_classes=2):
+    def __init__(self, in_channels=3, n_classes=8):
         super().__init__()
         self.n_classes = n_classes
 
         self.l0 = ResCon2D(in_channels=in_channels, out_channels=1, kernel_size=(3, 3), stride=1)
         self.l1 = nn.Sequential(
             nn.Linear(49, 32),
+            # nn.Dropout(0.5),
             nn.ReLU(),
         )
 
         self.l2 = nn.Sequential(
-            nn.Linear(32, n_classes),
-            nn.ReLU()
+            nn.Linear(32, 16),
+            # nn.Dropout(0.5),
+            nn.ReLU(),
+            nn.Linear(16, n_classes),
+            # nn.Softmax(dim=1), 
         )
 
     def forward(self, x):
